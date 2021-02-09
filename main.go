@@ -82,14 +82,27 @@ func MyExporter() *Exporter {
 }
 
 func (e *Exporter) Describe(ch chan <-*prometheus.Desc) {
+    // 将metric描述传入管道
     ch <- up
     ch <- user_count
     ch <- department_count
     ch <- mail_type_count
 }
 
-func (e *Exporter) Collection(ch chan <-*prometheus.Collector) {
-    
+func (e *Exporter) Collection(ch chan <-prometheus.Metric) {
+    // 定义数据的获取并传入到管道中
+    res, err := getAllUserInfo()
+    // upMetric
+    err = upMetric(err, ch)
+    if err != nil {
+        return
+    }
+    // user_count Metric
+
+    //
+
+
+
 }
 
 func getAllUserInfo() ([]byte, error) {
@@ -103,9 +116,17 @@ func getAllUserInfo() ([]byte, error) {
     return content, nil
 }
 
-func upMetric(num int) {
-
+func upMetric(e error, ch chan <-prometheus.Metric) (err error) {
+    if e != nil {
+        // 如果获取数据失败报错,则健康检查为0, 失败
+        ch <- prometheus.MustNewConstMetric(up, prometheus.GaugeValue, 0)
+        return e
+    }
+    ch <- prometheus.MustNewConstMetric(up, prometheus.GaugeValue, 1)
+    return nil
 }
+
+func userCountMetric(res )
 
 func main() {
     res, err := getAllUserInfo()
