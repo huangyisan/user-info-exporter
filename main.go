@@ -19,7 +19,7 @@ Metric Define
 up
 user_count
 department_count
-mail_type_qq_count
+mail_type_count
  */
 
 var (
@@ -42,7 +42,7 @@ var (
         nil)
 
     mail_type_count = prometheus.NewDesc(
-        prometheus.BuildFQName(namespace, "", "mail_type_count"),
+        prometheus.BuildFQName(namespace, "ddd", "mail_type"),
         "All the mail types' count",
         []string{"mail_type_count"},
         nil)
@@ -65,10 +65,6 @@ type UserInfo struct {
     Name string `json:"name"`
     Email string `json:"email"`
 }
-
-//type DepartMent struct {
-//    DepartMentInfo []UserInfo
-//}
 
 type Response map[string][]UserInfo
 
@@ -111,8 +107,8 @@ func (e *Exporter) Collect(ch chan <-prometheus.Metric) {
     // department_count Metric
     departmentCountMetric(userInfo, ch)
 
-    // mailTypeQQCount Metric
-    mailTypeQQCountMetric(userInfo, ch)
+    // mailTypeCount Metric
+    mailTypeCountMetric(userInfo, ch)
 
 
 
@@ -162,22 +158,22 @@ func departmentCountMetric(res Response, ch chan <- prometheus.Metric) {
     ch <- prometheus.MustNewConstMetric(department_count, prometheus.GaugeValue, dc,"department_count")
 }
 
-func mailTypeQQCountMetric(res Response, ch chan <- prometheus.Metric)  {
-    mailTypeQQCount := 0
-    for k,_ := range res{
+
+func mailTypeCountMetric(res Response, ch chan <- prometheus.Metric)  {
+    mailTypeMap := make(map[string]float64)
+    for k, _ := range res {
         user := res[k]
         for _, v := range user {
-            if r := strings.Contains(v.Email, "@qq.com"); r == true {
-                mailTypeQQCount += 1
-            }
+            mailType := strings.Split(v.Email, "@")
+            mt := mailType[len(mailType)-1]
+            mailTypeCount := mailTypeMap[mt]
+            mailTypeMap[mt] = mailTypeCount + 1
         }
     }
-
-    mc := float64(mailTypeQQCount)
-    ch <- prometheus.MustNewConstMetric(mail_type_count, prometheus.GaugeValue, mc,"mail_type_count")
-
+    for k,v := range mailTypeMap {
+        ch <- prometheus.MustNewConstMetric(mail_type_count, prometheus.GaugeValue, v, k)
+    }
 }
-
 
 func main() {
     exporter := MyExporter()
@@ -185,6 +181,5 @@ func main() {
 
     http.Handle("/userinfo/metrics", promhttp.Handler())
     http.ListenAndServe("0.0.0.0:8889", nil)
-
 
 }
