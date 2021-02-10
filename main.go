@@ -2,15 +2,17 @@ package main
 
 import (
     "encoding/json"
-    "fmt"
     "github.com/prometheus/client_golang/prometheus"
+    "github.com/prometheus/client_golang/prometheus/promhttp"
     "io/ioutil"
     "net/http"
+    "strings"
 )
 
 const namespace = "UserInfo"
 const website = "https://www.fastmock.site"
 const url = "/mock/410a590380265355dbf0de54a8af2454/index/api/user"
+
 /*
 Metric Define
 ===
@@ -89,10 +91,10 @@ func (e *Exporter) Describe(ch chan <-*prometheus.Desc) {
     ch <- mail_type_count
 }
 
-func (e *Exporter) Collection(ch chan <-prometheus.Metric) {
+func (e *Exporter) Collect(ch chan <-prometheus.Metric) {
     // 定义数据的获取并传入到管道中
     res, err := getAllUserInfo()
-    // upMetric
+    // up Metric
     err = upMetric(err, ch)
     if err != nil {
         return
@@ -109,6 +111,9 @@ func (e *Exporter) Collection(ch chan <-prometheus.Metric) {
     // department_count Metric
     departmentCountMetric(userInfo, ch)
 
+    // mailTypeQQCount Metric
+    mailTypeQQCountMetric(userInfo, ch)
+
 
 
 }
@@ -120,7 +125,6 @@ func getAllUserInfo() ([]byte, error) {
     }
     defer res.Body.Close()
     content, err := ioutil.ReadAll(res.Body)
-    fmt.Println(string(content))
     return content, nil
 }
 
@@ -132,13 +136,15 @@ func praseResult(res []byte) (Response, error) {
     return allUserInfo, nil
 }
 
+
+// get Metric value
 func upMetric(e error, ch chan <-prometheus.Metric) (err error) {
     if e != nil {
         // 如果获取数据失败报错,则健康检查为0, 失败
         ch <- prometheus.MustNewConstMetric(up, prometheus.GaugeValue, 0)
         return e
     }
-    ch <- prometheus.MustNewConstMetric(up, prometheus.GaugeValue, 1)
+    ch <- prometheus.MustNewConstMetric(up, prometheus.GaugeValue, 1,"userinfo","health")
     return nil
 }
 
@@ -148,24 +154,37 @@ func userCountMetric(res Response, ch chan <- prometheus.Metric) {
         userCount += len(res[k])
     }
     uc := float64(userCount)
-    ch <- prometheus.MustNewConstMetric(user_count, prometheus.GaugeValue, uc)
+    ch <- prometheus.MustNewConstMetric(user_count, prometheus.GaugeValue, uc,"user_count")
 }
 
 func departmentCountMetric(res Response, ch chan <- prometheus.Metric) {
     dc := float64(len(res))
-    ch <- prometheus.MustNewConstMetric(department_count, prometheus.GaugeValue, dc)
+    ch <- prometheus.MustNewConstMetric(department_count, prometheus.GaugeValue, dc,"department_count")
+}
+
+func mailTypeQQCountMetric(res Response, ch chan <- prometheus.Metric)  {
+    mailTypeQQCount := 0
+    for k,_ := range res{
+        user := res[k]
+        for _, v := range user {
+            if r := strings.Contains(v.Email, "@qq.com"); r == true {
+                mailTypeQQCount += 1
+            }
+        }
+    }
+
+    mc := float64(mailTypeQQCount)
+    ch <- prometheus.MustNewConstMetric(mail_type_count, prometheus.GaugeValue, mc,"mail_type_count")
+
 }
 
 
 func main() {
-    res, err := getAllUserInfo()
-    if err != nil {
+    exporter := MyExporter()
+    prometheus.MustRegister(exporter)
 
-    }
+    http.Handle("/userinfo/metrics", promhttp.Handler())
+    http.ListenAndServe("0.0.0.0:8889", nil)
 
-    var allUserInfo Response
-    if err := json.Unmarshal(res, &allUserInfo); err != nil {
-        panic(err)
-    }
-    fmt.Println(len(allUserInfo))
+
 }
