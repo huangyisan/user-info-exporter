@@ -97,9 +97,17 @@ func (e *Exporter) Collection(ch chan <-prometheus.Metric) {
     if err != nil {
         return
     }
-    // user_count Metric
 
-    //
+    userInfo, err := praseResult(res)
+    if err != nil {
+        return
+    }
+
+    // user_count Metric
+    userCountMetric(userInfo, ch)
+
+    // department_count Metric
+    departmentCountMetric(userInfo, ch)
 
 
 
@@ -116,6 +124,14 @@ func getAllUserInfo() ([]byte, error) {
     return content, nil
 }
 
+func praseResult(res []byte) (Response, error) {
+    var allUserInfo Response
+    if err := json.Unmarshal(res, &allUserInfo); err != nil {
+        return nil, err
+    }
+    return allUserInfo, nil
+}
+
 func upMetric(e error, ch chan <-prometheus.Metric) (err error) {
     if e != nil {
         // 如果获取数据失败报错,则健康检查为0, 失败
@@ -126,7 +142,20 @@ func upMetric(e error, ch chan <-prometheus.Metric) (err error) {
     return nil
 }
 
-func userCountMetric(res )
+func userCountMetric(res Response, ch chan <- prometheus.Metric) {
+    userCount := 0
+    for k,_ := range res {
+        userCount += len(res[k])
+    }
+    uc := float64(userCount)
+    ch <- prometheus.MustNewConstMetric(user_count, prometheus.GaugeValue, uc)
+}
+
+func departmentCountMetric(res Response, ch chan <- prometheus.Metric) {
+    dc := float64(len(res))
+    ch <- prometheus.MustNewConstMetric(department_count, prometheus.GaugeValue, dc)
+}
+
 
 func main() {
     res, err := getAllUserInfo()
